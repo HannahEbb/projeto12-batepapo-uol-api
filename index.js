@@ -31,7 +31,6 @@ const messageSchema = joi.object({
 
 const app = express();
 
-let now = dayjs();
 
 app.use(cors());
 app.use(json());
@@ -57,7 +56,7 @@ app.post('/participants', async (req, res) => {
 
     try {
         await db.collection("participants").insertOne( { name: name, lastStatus: Date.now()} );
-   
+        let now = dayjs();
         let time = now.format("HH:mm:ss");
     
         await db.collection("messages").insertOne( { from: name, to: 'Todos', text: 'entra na sala...', type: 'status', time: time });
@@ -86,7 +85,7 @@ async function deletarAutomatico () {
         
     try {
         const names = await db.collection("participants").find().toArray() 
-   
+        let now = dayjs();
         let time = now.format("HH:mm:ss");
 
         names.map(item => { 
@@ -105,7 +104,7 @@ async function deletarAutomatico () {
 
 
 app.post('/messages', async (req, res) => {
-    
+    const { user } = req.headers;
     const validation = messageSchema.validate(req.body);
 
     if(validation.error) {
@@ -115,13 +114,12 @@ app.post('/messages', async (req, res) => {
     }
 
     const { to, text, type } = req.body;
-    const { User } = req.headers;
-
+    let now = dayjs();
     let time = now.format("HH:mm:ss"); 
 
     try {
     
-        await db.collection("messages").insertOne( { from: User, to: to, text: text, type: type, time: time });
+        db.collection("messages").insertOne( { from: user, to: to, text: text, type: type, time: time });
             
         res.status(201).send('Mensagem enviada com sucesso!');
     } catch (error) {
@@ -133,15 +131,15 @@ app.post('/messages', async (req, res) => {
 
 app.get('/messages', async (req, res) => {
     const { limit } = req.query; 
-    const { User } = req.headers;
+    const { user } = req.headers;
 
     try {
-        const arrayMensagens = await db.collection('messages').find({ to: 'Todos', type: 'message' } & { to: User, type: 'private-message' } & { to: 'Todos', type: 'status' }).toArray();
+        const arrayMensagens = await db.collection('messages').find({ to: 'Todos', type: 'message' } & { to: user, type: 'private-message' } & { to: 'Todos', type: 'status' }).toArray();
 
         if(limit) {
-            res.send([...arrayMensagens].reverse().slice(-limit));
+            res.send([...arrayMensagens].slice(-limit));
         } else {
-            res.send([...arrayMensagens].reverse());
+            res.send([...arrayMensagens]);
         }
        
     } catch(error) {
@@ -153,16 +151,15 @@ app.get('/messages', async (req, res) => {
 
 
 app.post('/status', async (req, res) => {     
-     const { User } = req.headers;
-     console.log( User );
+    const { user } = req.headers;
     
      try{
-        const estaOn = await db.collection('participants').findOne({ name: User });
+        const estaOn = await db.collection('participants').findOne({ name: user });
         if(estaOn) {
             await db.collection('participants').updateOne({ name: estaOn.name }, { $set: {lastStatus: Date.now()} });
             res.status(200).send('Usuario esta on!');
         }
-           res.status(404).send('Usuario esta off!'); // se nao encontrou nao eh erro! entao cai aqui.
+           res.status(404).send('Usuario esta off!'); 
      } catch(error) {
         res.status(404).send(`${error}`);
      }
