@@ -7,7 +7,7 @@ import joi from 'joi';
 
 dotenv.config();
 
-const client = MongoClient(process.env.URL_CONNECT_MONGO);
+const client = new MongoClient(process.env.URL_CONNECT_MONGO);
 let db;
 
 
@@ -32,6 +32,7 @@ const messageSchema = joi.object({
 const app = express();
 
 //const dayjs = require('dayjs');
+let now = dayjs();
 
 app.use(cors());
 app.use(json());
@@ -39,26 +40,25 @@ app.use(json());
 
 
 app.post('/participants', async (req, res) => {
-    const { name } = req.body; 
+    const  name  = req.body; 
 
     const validation = nameSchema.validate(name); 
 
-    const jaCadastrado = await db.colllection("participants").findOne({ name: name });
+    const jaCadastrado = await db.collection("participants").findOne({ name: name.name });
 
         if( validation.error ) {  
             console.log(validation.error.details);
             res.status(422).send('Preencha seu nome, por favor!');
             return; 
         } else if(jaCadastrado) {
-            //se o nome ja estivar cadastrado no mongo, retornar status erro 409! > AULA SEG 20/06 1H39MIN - 1H55MIN
             res.status(409).send('Opa! Este nome já está cadastrado.');
             return;
         };
 
     try {
-        await db.collection("participants").insertOne( { name: name, lastStatus: Date.now()} );
+        await db.collection("participants").insertOne( { name: name.name, lastStatus: Date.now()} );
    
-        let time = dayjs.format("HH:mm:ss"); // ou new Date().getTime() ??
+        let time = now.format("HH:mm:ss");
     
         await db.collection("messages").insertOne( { from: name, to: 'Todos', text: 'entra na sala...', type: 'status', time: time });
             
@@ -88,10 +88,10 @@ async function deletarAutomatico () {
         const names = await db.collection("participants").findMany({ lastStatus: 11000 }).toArray() // array de nomes
         await db.collection("participants").deleteMany( { lastStatus: 11000 } ); 
    
-        let time = dayjs.format("HH:mm:ss"); // ou new Date().getTime() ??
+        let time = now.format("HH:mm:ss"); 
 
         names.map(item => {
-            await db.collection("messages").insertOne( { from: item.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: time });
+            db.collection("messages").insertOne( { from: item.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: time });
         });
         
         res.status(201).send('Usuario(s) saiu da sala com sucesso!');
@@ -115,7 +115,7 @@ app.post('/messages', async (req, res) => {
     const { to, text, type } = req.body;
     const { User } = req.headers;
 
-    let time = dayjs.format("HH:mm:ss"); // ou new Date().getTime() ??
+    let time = now.format("HH:mm:ss"); 
 
     try {
     
@@ -129,7 +129,7 @@ app.post('/messages', async (req, res) => {
 });
 
 
-app.get('/messages', (req, res) => {
+app.get('/messages', async (req, res) => {
     const { limit } = req.query; //aceita parametro opcional querystring para limitar o numero de mensagens que recebe > QUERY NAO PRECISA DECLARAR NO BACK! USA const {page} = req.query, opr ex, para pegar o param query
     const { User } = req.headers;
 
