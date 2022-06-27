@@ -12,7 +12,7 @@ let db;
 
 
 client.connect().then(() => {
-    db = client.db('bate_papo_uol'); //bate_papo_uol é o banco de dados que criei, que vai conter coleções
+    db = client.db('bate_papo_uol'); // é o banco de dados que criei, que vai conter coleções
 }).catch((error) => {
     console.log(`Erro ao conectar o banco de dados: ${error}`);
 });
@@ -31,7 +31,6 @@ const messageSchema = joi.object({
 
 const app = express();
 
-//const dayjs = require('dayjs');
 let now = dayjs();
 
 app.use(cors());
@@ -40,11 +39,12 @@ app.use(json());
 
 
 app.post('/participants', async (req, res) => {
-    const  name  = req.body; 
 
-    const validation = nameSchema.validate(name); 
+    const validation = nameSchema.validate(req.body); 
 
-    const jaCadastrado = await db.collection("participants").findOne({ name: name.name });
+    const  { name }  = req.body; 
+
+    const jaCadastrado = await db.collection("participants").findOne({ name: name });
 
         if( validation.error ) {  
             console.log(validation.error.details);
@@ -56,7 +56,7 @@ app.post('/participants', async (req, res) => {
         };
 
     try {
-        await db.collection("participants").insertOne( { name: name.name, lastStatus: Date.now()} );
+        await db.collection("participants").insertOne( { name: name, lastStatus: Date.now()} );
    
         let time = now.format("HH:mm:ss");
     
@@ -130,18 +130,21 @@ app.post('/messages', async (req, res) => {
 
 
 app.get('/messages', async (req, res) => {
-    const { limit } = req.query; //aceita parametro opcional querystring para limitar o numero de mensagens que recebe > QUERY NAO PRECISA DECLARAR NO BACK! USA const {page} = req.query, opr ex, para pegar o param query
+    const { limit } = req.query; 
     const { User } = req.headers;
 
     try {
-        const arrayMensagenTodos = await db.collection('messages').find({ to: 'Todos', type: 'message' }).toArray();
-        const arrayMensagensPrivadas = await db.collection('messages').find({ to: User, type: 'private-message' }).toArray();
+        const arrayMensagens = await db.collection('messages').find({ to: 'Todos', type: 'message' } & { to: User, type: 'private-message' } & { to: 'Todos', type: 'status' }).toArray();
 
-        const arrayMensagens = arrayMensagenTodos.concat(arrayMensagensPrivadas);
-        res.send(arrayMensagens);
+        if(limit) {
+            res.send([...arrayMensagens].reverse().slice(-limit));
+        } else {
+            res.send([...arrayMensagens].reverse());
+        }
+       
     } catch(error) {
         console.log(error);
-        res.status(500).send('Nao foi possivel pegar o array com todos os participantes');
+        res.status(500).send('Nao foi possivel pegar o array com todas as mensagens');
     }
   
 });
