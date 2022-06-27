@@ -12,7 +12,7 @@ let db;
 
 
 client.connect().then(() => {
-    db = client.db('bate_papo_uol'); // é o banco de dados que criei, que vai conter coleções
+    db = client.db('bate_papo_uol'); 
 }).catch((error) => {
     console.log(`Erro ao conectar o banco de dados: ${error}`);
 });
@@ -25,7 +25,7 @@ const nameSchema = joi.object({
 const messageSchema = joi.object({
     to: joi.string().required(),
     text: joi.string().required(),
-    type: joi.string().required() //"private_message" ou "message". É isso mesmo?
+    type: joi.string().required() 
 });
 
 
@@ -81,25 +81,27 @@ app.get('/participants', async (req, res) => {
   
 }); 
 
-//setInterval(
-async function deletarAutomatico () {
+setInterval(
+async function deletarAutomatico () { 
         
     try {
-        const names = await db.collection("participants").findMany({ lastStatus: 11000 }).toArray() // array de nomes
-        await db.collection("participants").deleteMany( { lastStatus: 11000 } ); 
+        const names = await db.collection("participants").find().toArray() 
    
-        let time = now.format("HH:mm:ss"); 
+        let time = now.format("HH:mm:ss");
 
-        names.map(item => {
-            db.collection("messages").insertOne( { from: item.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: time });
+        names.map(item => { 
+            if(Date.now() - item.lastStatus >= 10000) {
+                db.collection("participants").deleteOne( { name: item.name } ); 
+                db.collection("messages").insertOne( { from: item.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: time });
+            }
         });
         
-        res.status(201).send('Usuario(s) saiu da sala com sucesso!');
+        console.log('Usuario(s) saiu da sala com sucesso!');
     }  catch (error) {
-        res.status(500).send(`Nao foi possivel deletar o usuario. ERRO: ${error}`)
+        console.log(error);
     }
        
-} //, 15000);
+}, 15000);
 
 
 app.post('/messages', async (req, res) => {
@@ -150,8 +152,9 @@ app.get('/messages', async (req, res) => {
 });
 
 
-app.post('/status', async (req, res) => {     //"Deve receber por um header na requisição, chamado User, contendo o nome do participante
+app.post('/status', async (req, res) => {     
      const { User } = req.headers;
+     console.log( User );
     
      try{
         const estaOn = await db.collection('participants').findOne({ name: User });
@@ -159,9 +162,6 @@ app.post('/status', async (req, res) => {     //"Deve receber por um header na r
             await db.collection('participants').updateOne({ name: estaOn.name }, { $set: {lastStatus: Date.now()} });
             res.status(200).send('Usuario esta on!');
         }
-           //checar se o participante está na lista de participantes 
-           //se esta, atualizar o atrubuto lastStatus do participante com o timestamp atual -> Date.now()
-           //retornar status 200
            res.status(404).send('Usuario esta off!'); // se nao encontrou nao eh erro! entao cai aqui.
      } catch(error) {
         res.status(404).send(`${error}`);
